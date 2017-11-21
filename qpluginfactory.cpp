@@ -5,11 +5,13 @@
 #include <QDebug>
 #include <QJsonArray>
 
-QPluginFactory::QPluginFactory(const QString &pluginType, QObject *parent) :
-	QPluginFactory(pluginType, QByteArray(), parent)
+extern bool __qpluginfactory_is_debug();
+
+QPluginFactoryBase::QPluginFactoryBase(const QString &pluginType, QObject *parent) :
+	QPluginFactoryBase(pluginType, QByteArray(), parent)
 {}
 
-QPluginFactory::QPluginFactory(const QString &pluginType, const QByteArray &pluginIid, QObject *parent) :
+QPluginFactoryBase::QPluginFactoryBase(const QString &pluginType, const QByteArray &pluginIid, QObject *parent) :
 	QObject(parent),
 	_pluginType(pluginType),
 	_pluginIid(pluginIid),
@@ -19,7 +21,7 @@ QPluginFactory::QPluginFactory(const QString &pluginType, const QByteArray &plug
 	reloadPlugins();
 }
 
-void QPluginFactory::addSearchDir(const QDir &dir, bool isTopLevel)
+void QPluginFactoryBase::addSearchDir(const QDir &dir, bool isTopLevel)
 {
 	if(isTopLevel) {
 		auto mDir = dir;
@@ -29,12 +31,12 @@ void QPluginFactory::addSearchDir(const QDir &dir, bool isTopLevel)
 		_extraDirs.append(dir);
 }
 
-QStringList QPluginFactory::allKeys() const
+QStringList QPluginFactoryBase::allKeys() const
 {
 	return _loaders.keys();
 }
 
-QJsonObject QPluginFactory::metaData(const QString &key) const
+QJsonObject QPluginFactoryBase::metaData(const QString &key) const
 {
 	auto loader = _loaders.value(key);
 	if(loader)
@@ -43,7 +45,7 @@ QJsonObject QPluginFactory::metaData(const QString &key) const
 		return {};
 }
 
-QObject *QPluginFactory::plugin(const QString &key) const
+QObject *QPluginFactoryBase::plugin(const QString &key) const
 {
 	auto loader = _loaders.value(key);
 	if(loader) {
@@ -54,23 +56,23 @@ QObject *QPluginFactory::plugin(const QString &key) const
 		return nullptr;
 }
 
-QString QPluginFactory::pluginType() const
+QString QPluginFactoryBase::pluginType() const
 {
 	return _pluginType;
 }
 
-QByteArray QPluginFactory::pluginIid() const
+QByteArray QPluginFactoryBase::pluginIid() const
 {
 	return _pluginIid;
 }
 
-void QPluginFactory::setPluginIid(const QByteArray &pluginIid)
+void QPluginFactoryBase::setPluginIid(const QByteArray &pluginIid)
 {
 	_pluginIid = pluginIid;
 	reloadPlugins();
 }
 
-void QPluginFactory::reloadPlugins()
+void QPluginFactoryBase::reloadPlugins()
 {
 	//find the plugin dir
 	auto oldKeys = _loaders.keys();
@@ -105,13 +107,8 @@ void QPluginFactory::reloadPlugins()
 			auto metaData = plugin->metaData();
 
 			//skip non-matching types
-#ifdef QT_NO_DEBUG
-			if(metaData[QStringLiteral("debug")].toBool()) {
-#else
-			if(!metaData[QStringLiteral("debug")].toBool()) {
-#endif
+			if(metaData[QStringLiteral("debug")].toBool() != __qpluginfactory_is_debug())
 				continue;
-			}
 
 			auto iid = plugin->metaData().value(QStringLiteral("IID")).toString();
 			if(!_pluginIid.isNull() && iid != _pluginIid) {

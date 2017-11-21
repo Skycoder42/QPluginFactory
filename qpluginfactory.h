@@ -20,7 +20,7 @@ private:
 	const QByteArray _what;
 };
 
-class QPluginFactory : public QObject
+class QPluginFactoryBase : public QObject
 {
 	Q_OBJECT
 
@@ -28,8 +28,8 @@ class QPluginFactory : public QObject
 	Q_PROPERTY(QByteArray pluginIid READ pluginIid WRITE setPluginIid)
 
 public:
-	QPluginFactory(const QString &pluginType, QObject *parent = nullptr);
-	QPluginFactory(const QString &pluginType, const QByteArray &pluginIid, QObject *parent = nullptr);
+	QPluginFactoryBase(const QString &pluginType, QObject *parent = nullptr);
+	QPluginFactoryBase(const QString &pluginType, const QByteArray &pluginIid, QObject *parent = nullptr);
 
 	void addSearchDir(const QDir &dir, bool isTopLevel = false);
 
@@ -54,10 +54,10 @@ private:
 };
 
 template <typename TPlugin>
-class QGenericPluginFactory : public QPluginFactory
+class QPluginFactory : public QPluginFactoryBase
 {
 public:
-	QGenericPluginFactory(const QString &pluginType, QObject *parent = nullptr);
+	QPluginFactory(const QString &pluginType, QObject *parent = nullptr);
 
 	TPlugin *plugin(const QString &key) const;
 	QObject *pluginObj(const QString &key) const;
@@ -66,7 +66,7 @@ public:
 };
 
 template <typename TPlugin, typename TObject>
-class QPluginObjectFactory : public QGenericPluginFactory<TPlugin>
+class QPluginObjectFactory : public QPluginFactory<TPlugin>
 {
 public:
 	QPluginObjectFactory(const QString &pluginType, QObject *parent = nullptr);
@@ -81,28 +81,28 @@ public:
 // ------------- Template Implementations -------------
 
 template<typename TPlugin>
-QGenericPluginFactory<TPlugin>::QGenericPluginFactory(const QString &pluginType, QObject *parent) :
-	QPluginFactory(pluginType, qobject_interface_iid<TPlugin>(), parent)
+QPluginFactory<TPlugin>::QPluginFactory(const QString &pluginType, QObject *parent) :
+	QPluginFactoryBase(pluginType, qobject_interface_iid<TPlugin*>(), parent)
 {}
 
 template<typename TPlugin>
-TPlugin *QGenericPluginFactory<TPlugin>::plugin(const QString &key) const
+TPlugin *QPluginFactory<TPlugin>::plugin(const QString &key) const
 {
-	return qobject_cast<TPlugin*>(QPluginFactory::plugin(key));
+	return qobject_cast<TPlugin*>(QPluginFactoryBase::plugin(key));
 }
 
 template<typename TPlugin>
-QObject *QGenericPluginFactory<TPlugin>::pluginObj(const QString &key) const
+QObject *QPluginFactory<TPlugin>::pluginObj(const QString &key) const
 {
-	return QPluginFactory::plugin(key);
+	return QPluginFactoryBase::plugin(key);
 }
 
 template<typename TPlugin>
-void QGenericPluginFactory<TPlugin>::setPluginIid(const QByteArray &) {}
+void QPluginFactory<TPlugin>::setPluginIid(const QByteArray &) {}
 
 template<typename TPlugin, typename TObject>
 QPluginObjectFactory<TPlugin, TObject>::QPluginObjectFactory(const QString &pluginType, QObject *parent) :
-	QGenericPluginFactory<TPlugin>(pluginType, parent)
+	QPluginFactory<TPlugin>(pluginType, parent)
 {}
 
 template<typename TPlugin, typename TObject>

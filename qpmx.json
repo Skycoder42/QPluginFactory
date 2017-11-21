@@ -5,7 +5,7 @@
         "file": "LICENSE",
         "name": "BSD_3_CLAUSE"
     },
-    "prcFile": "",
+    "prcFile": "qpluginfactory.prc",
     "priFile": "qpluginfactory.pri",
     "priIncludes": [
     ],
@@ -15,13 +15,13 @@
                 "email": "skycoder42.de@gmx.de",
                 "name": "Skycoder"
             },
-            "description": "An extension of QCommandlineParser to make context based CLIs easier",
+            "description": "A factory class to easily load generic plugins",
             "name": "de.skycoder42.qpluginfactory",
             "repository": {
                 "type": "GITHUB",
                 "url": "https://github.com/Skycoder42/QPluginFactory.git"
             },
-            "webpage": "https://github.com/Skycoder42/QCliParser"
+            "webpage": "https://github.com/Skycoder42/QPluginFactory"
         }
     },
     "source": false
