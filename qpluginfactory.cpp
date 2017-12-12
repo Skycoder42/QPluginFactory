@@ -16,6 +16,7 @@ QPluginFactoryBase::QPluginFactoryBase(const QString &pluginType, const QByteArr
 	_pluginType(pluginType),
 	_pluginIid(pluginIid),
 	_extraDirs(),
+	_loaderMutex(),
 	_loaders()
 {
 	reloadPlugins();
@@ -33,11 +34,13 @@ void QPluginFactoryBase::addSearchDir(const QDir &dir, bool isTopLevel)
 
 QStringList QPluginFactoryBase::allKeys() const
 {
+	QMutexLocker _(&_loaderMutex);
 	return _loaders.keys();
 }
 
 QJsonObject QPluginFactoryBase::metaData(const QString &key) const
 {
+	QMutexLocker _(&_loaderMutex);
 	auto loader = _loaders.value(key);
 	if(loader)
 		return loader->metaData()[QStringLiteral("MetaData")].toObject();
@@ -47,6 +50,7 @@ QJsonObject QPluginFactoryBase::metaData(const QString &key) const
 
 QObject *QPluginFactoryBase::plugin(const QString &key) const
 {
+	QMutexLocker _(&_loaderMutex);
 	auto loader = _loaders.value(key);
 	if(loader) {
 		if(!loader->isLoaded() && !loader->load())
@@ -74,6 +78,8 @@ void QPluginFactoryBase::setPluginIid(const QByteArray &pluginIid)
 
 void QPluginFactoryBase::reloadPlugins()
 {
+	QMutexLocker _(&_loaderMutex);
+
 	//find the plugin dir
 	auto oldKeys = _loaders.keys();
 

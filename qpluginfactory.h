@@ -5,6 +5,7 @@
 #include <QObject>
 #include <QPluginLoader>
 #include <QException>
+#include <QMutex>
 
 class QPluginLoadException : public QException
 {
@@ -50,6 +51,7 @@ private:
 	QByteArray _pluginIid;
 	QList<QDir> _extraDirs;
 
+	mutable QMutex _loaderMutex;
 	QHash<QString, QSharedPointer<QPluginLoader>> _loaders;
 };
 
