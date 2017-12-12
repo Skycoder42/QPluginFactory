@@ -116,7 +116,7 @@ void QPluginFactoryBase::reloadPlugins()
 			if(metaData[QStringLiteral("debug")].toBool() != __qpluginfactory_is_debug())
 				continue;
 
-			auto iid = plugin->metaData().value(QStringLiteral("IID")).toString();
+			auto iid = plugin->metaData().value(QStringLiteral("IID")).toString().toUtf8();
 			if(!_pluginIid.isNull() && iid != _pluginIid) {
 				qWarning().noquote() << "File" << plugin->fileName() << "is no plugin of type" << _pluginIid;
 				continue;
