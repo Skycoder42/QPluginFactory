@@ -10,7 +10,7 @@
 class QPluginLoadException : public QException
 {
 public:
-	QPluginLoadException(QSharedPointer<QPluginLoader> loader);
+	QPluginLoadException(QPluginLoader *loader);
 
 	const char *what() const noexcept override;
 	void raise() const override;
@@ -29,6 +29,13 @@ class QPluginFactoryBase : public QObject
 	Q_PROPERTY(QByteArray pluginIid READ pluginIid WRITE setPluginIid)
 
 public:
+	class PluginInfo {
+	public:
+		virtual inline ~PluginInfo() = default;
+		virtual QJsonObject metaData() const = 0;
+		virtual QObject *instance() = 0;
+	};
+
 	QPluginFactoryBase(const QString &pluginType, QObject *parent = nullptr);
 	QPluginFactoryBase(const QString &pluginType, const QByteArray &pluginIid, QObject *parent = nullptr);
 
@@ -52,7 +59,9 @@ private:
 	QList<QDir> _extraDirs;
 
 	mutable QMutex _loaderMutex;
-	QHash<QString, QSharedPointer<QPluginLoader>> _loaders;
+	QHash<QString, QSharedPointer<PluginInfo>> _plugins;
+
+	QJsonArray checkMeta(const QJsonObject &metaData, const QString &filename) const;
 };
 
 template <typename TPlugin>
@@ -116,6 +125,16 @@ TObject *QPluginObjectFactory<TPlugin, TObject>::createInstance(const QString &k
 		return plg->createInstance(key, args...);
 	else
 		return nullptr;
+}
+
+#define Q_GLOBAL_PLUGIN_FACTORY(PluginType, pluginKey, instName) namespace { \
+	typedef QPluginFactory<PluginType> __QGPF_ ## PluginType ## _Factory; \
+	Q_GLOBAL_STATIC_WITH_ARGS(__QGPF_ ## PluginType ## _Factory, instName, (QLatin1String(pluginKey))) \
+}
+
+#define Q_GLOBAL_PLUGIN_OBJECT_FACTORY(PluginType, ObjectType, pluginKey, instName) namespace { \
+	typedef QPluginObjectFactory<PluginType, ObjectType> __QGPF_ ## PluginType ## _Factory; \
+	Q_GLOBAL_STATIC_WITH_ARGS(__QGPF_ ## PluginType ## _Factory, instName, (QLatin1String(pluginKey))) \
 }
 
 #endif // QPLUGINFACTORY_H

@@ -7,6 +7,32 @@
 
 extern bool __qpluginfactory_is_debug();
 
+class StaticPluginInfo : public QPluginFactoryBase::PluginInfo
+{
+public:
+	StaticPluginInfo(const QStaticPlugin &plugin);
+
+	QJsonObject metaData() const override;
+	QObject *instance() override;
+
+private:
+	QStaticPlugin _plugin;
+};
+
+class DynamicPluginInfo : public QPluginFactoryBase::PluginInfo
+{
+public:
+	DynamicPluginInfo(QScopedPointer<QPluginLoader, QScopedPointerDeleteLater> &loader);
+
+	QJsonObject metaData() const override;
+	QObject *instance() override;
+
+private:
+	QScopedPointer<QPluginLoader, QScopedPointerDeleteLater> _loader;
+};
+
+
+
 QPluginFactoryBase::QPluginFactoryBase(const QString &pluginType, QObject *parent) :
 	QPluginFactoryBase(pluginType, QByteArray(), parent)
 {}
@@ -17,8 +43,9 @@ QPluginFactoryBase::QPluginFactoryBase(const QString &pluginType, const QByteArr
 	_pluginIid(pluginIid),
 	_extraDirs(),
 	_loaderMutex(),
-	_loaders()
+	_plugins()
 {
+	//setup dynamic plugins
 	reloadPlugins();
 }
 
@@ -35,15 +62,15 @@ void QPluginFactoryBase::addSearchDir(const QDir &dir, bool isTopLevel)
 QStringList QPluginFactoryBase::allKeys() const
 {
 	QMutexLocker _(&_loaderMutex);
-	return _loaders.keys();
+	return _plugins.keys();
 }
 
 QJsonObject QPluginFactoryBase::metaData(const QString &key) const
 {
 	QMutexLocker _(&_loaderMutex);
-	auto loader = _loaders.value(key);
-	if(loader)
-		return loader->metaData()[QStringLiteral("MetaData")].toObject();
+	auto info = _plugins.value(key);
+	if(info)
+		return info->metaData()[QStringLiteral("MetaData")].toObject();
 	else
 		return {};
 }
@@ -51,12 +78,10 @@ QJsonObject QPluginFactoryBase::metaData(const QString &key) const
 QObject *QPluginFactoryBase::plugin(const QString &key) const
 {
 	QMutexLocker _(&_loaderMutex);
-	auto loader = _loaders.value(key);
-	if(loader) {
-		if(!loader->isLoaded() && !loader->load())
-			throw QPluginLoadException(loader);
-		return loader->instance();
-	} else
+	auto info = _plugins.value(key);
+	if(info)
+		return info->instance();
+	else
 		return nullptr;
 }
 
@@ -81,7 +106,7 @@ void QPluginFactoryBase::reloadPlugins()
 	QMutexLocker _(&_loaderMutex);
 
 	//find the plugin dir
-	auto oldKeys = _loaders.keys();
+	auto oldKeys = _plugins.keys();
 
 	QList<QDir> allDirs;
 	//first: dirs in path
@@ -107,45 +132,61 @@ void QPluginFactoryBase::reloadPlugins()
 	if(pluginMainDir.cd(_pluginType))
 		allDirs.append(pluginMainDir);
 
+	//setup dynamic plugins
 	foreach(auto pluginDir, allDirs) {
 		foreach(auto info, pluginDir.entryInfoList(QDir::Files | QDir::Readable | QDir::Executable | QDir::NoDotAndDotDot)) {
-			QSharedPointer<QPluginLoader> plugin(new QPluginLoader(info.absoluteFilePath()), &QObject::deleteLater);
-			auto metaData = plugin->metaData();
-
-			//skip non-matching types
-			if(metaData[QStringLiteral("debug")].toBool() != __qpluginfactory_is_debug())
-				continue;
-
-			auto iid = plugin->metaData().value(QStringLiteral("IID")).toString().toUtf8();
-			if(!_pluginIid.isNull() && iid != _pluginIid) {
-				qWarning().noquote() << "File" << plugin->fileName() << "is no plugin of type" << _pluginIid;
-				continue;
-			}
-
-			auto data = metaData[QStringLiteral("MetaData")].toObject();
-			auto keys = data[QStringLiteral("Keys")].toArray();
-			if(keys.isEmpty()) {
-				qWarning().noquote() << "Plugin" << plugin->fileName() << "is does not provide any Keys";
-				continue;
-			}
-
+			QScopedPointer<QPluginLoader, QScopedPointerDeleteLater> loader(new QPluginLoader(info.absoluteFilePath()));
+			auto metaData = loader->metaData();
+			auto keys = checkMeta(metaData, loader->fileName());
 			foreach(auto key, keys) {
 				auto k = key.toString();
-				if(!_loaders.contains(k))
-					_loaders.insert(k, plugin);
+				if(!_plugins.contains(k))
+					_plugins.insert(k, QSharedPointer<DynamicPluginInfo>::create(loader));
 				oldKeys.removeOne(k);
 			}
-
 		}
 	}
 
+	//setup static plugins
+	foreach(auto info, QPluginLoader::staticPlugins()) {
+		auto keys = checkMeta(info.metaData(), QString());
+		foreach(auto key, keys) {
+			auto k = key.toString();
+			if(!_plugins.contains(k))
+				_plugins.insert(k, QSharedPointer<StaticPluginInfo>::create(info));
+			oldKeys.removeOne(k);
+		}
+	}
+
+	//remove old, now unused plugins
 	foreach(auto key, oldKeys)
-		_loaders.remove(key);
+		_plugins.remove(key);
+}
+
+QJsonArray QPluginFactoryBase::checkMeta(const QJsonObject &metaData, const QString &filename) const
+{
+	if(metaData[QStringLiteral("debug")].toBool() != __qpluginfactory_is_debug())
+		return {};
+
+	auto iid = metaData.value(QStringLiteral("IID")).toString().toUtf8();
+	if(!_pluginIid.isNull() && iid != _pluginIid) {
+		qWarning().noquote() << "File" << filename << "is no plugin of type" << _pluginIid;
+		return {};
+	}
+
+	auto data = metaData[QStringLiteral("MetaData")].toObject();
+	auto keys = data[QStringLiteral("Keys")].toArray();
+	if(keys.isEmpty()) {
+		qWarning().noquote() << "Plugin" << filename << "is does not provide any Keys";
+		return {};
+	}
+
+	return keys;
 }
 
 
 
-QPluginLoadException::QPluginLoadException(QSharedPointer<QPluginLoader> loader) :
+QPluginLoadException::QPluginLoadException(QPluginLoader *loader) :
 	QPluginLoadException(QStringLiteral("Failed to load plugin \"%1\" with error: %2")
 						 .arg(loader->fileName())
 						 .arg(loader->errorString())
@@ -171,3 +212,37 @@ QPluginLoadException::QPluginLoadException(const QByteArray &error) :
 	QException(),
 	_what(error)
 {}
+
+
+
+StaticPluginInfo::StaticPluginInfo(const QStaticPlugin &plugin) :
+	_plugin(plugin)
+{}
+
+QJsonObject StaticPluginInfo::metaData() const
+{
+	return _plugin.metaData();
+}
+
+QObject *StaticPluginInfo::instance()
+{
+	return _plugin.instance();
+}
+
+DynamicPluginInfo::DynamicPluginInfo(QScopedPointer<QPluginLoader, QScopedPointerDeleteLater> &loader) :
+	_loader()
+{
+	_loader.swap(loader);
+}
+
+QJsonObject DynamicPluginInfo::metaData() const
+{
+	return _loader->metaData();
+}
+
+QObject *DynamicPluginInfo::instance()
+{
+	if(!_loader->isLoaded() && !_loader->load())
+		throw QPluginLoadException(_loader.data());
+	return _loader->instance();
+}
