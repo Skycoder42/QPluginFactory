@@ -27,6 +27,8 @@ public:
 	QJsonObject metaData() const override;
 	QObject *instance() override;
 
+	QPluginLoader *loader() const;
+
 private:
 	QScopedPointer<QPluginLoader, QScopedPointerDeleteLater> _loader;
 };
@@ -142,10 +144,14 @@ void QPluginFactoryBase::reloadPlugins()
 			QScopedPointer<QPluginLoader, QScopedPointerDeleteLater> loader(new QPluginLoader(info.absoluteFilePath()));
 			auto metaData = loader->metaData();
 			auto keys = checkMeta(metaData, loader->fileName());
+			if(keys.isEmpty())
+				continue;
+
+			auto dynInfo = QSharedPointer<DynamicPluginInfo>::create(loader);
 			foreach(auto key, keys) {
 				auto k = key.toString();
 				if(!_plugins.contains(k))
-					_plugins.insert(k, QSharedPointer<DynamicPluginInfo>::create(loader));
+					_plugins.insert(k, dynInfo);
 				oldKeys.removeOne(k);
 			}
 		}
@@ -165,6 +171,36 @@ void QPluginFactoryBase::reloadPlugins()
 	//remove old, now unused plugins
 	foreach(auto key, oldKeys)
 		_plugins.remove(key);
+}
+
+bool QPluginFactoryBase::isLoaded(const QString &key) const
+{
+	QMutexLocker _(&_loaderMutex);
+	auto info = _plugins.value(key);
+	if(info) {
+		auto dynInfo = info.dynamicCast<DynamicPluginInfo>();
+		if(dynInfo)
+			return dynInfo->loader()->isLoaded();
+		else //static plugin
+			return true;
+	} else
+		return false;
+}
+
+void QPluginFactoryBase::unload(const QString &key)
+{
+	QMutexLocker _(&_loaderMutex);
+	auto info = _plugins.value(key);
+	if(info) {
+		auto dynInfo = info.dynamicCast<DynamicPluginInfo>();
+		if(dynInfo) {
+			auto loader = dynInfo->loader();
+			if(loader->isLoaded()){
+				if(!loader->unload())
+					qWarning().noquote() << "Failed to unload plugin for key" << key << "with error:" << loader->errorString();
+			}
+		}
+	}
 }
 
 QJsonArray QPluginFactoryBase::checkMeta(const QJsonObject &metaData, const QString &filename) const
@@ -249,4 +285,9 @@ QObject *DynamicPluginInfo::instance()
 	if(!_loader->isLoaded() && !_loader->load())
 		throw QPluginLoadException(_loader.data());
 	return _loader->instance();
+}
+
+QPluginLoader *DynamicPluginInfo::loader() const
+{
+	return _loader.data();
 }

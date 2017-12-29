@@ -53,6 +53,10 @@ public slots:
 
 	void reloadPlugins();
 
+protected:
+	bool isLoaded(const QString &key) const;
+	void unload(const QString &key);
+
 private:
 	const QString _pluginType;
 	QByteArray _pluginIid;
