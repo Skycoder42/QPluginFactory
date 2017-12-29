@@ -134,7 +134,11 @@ void QPluginFactoryBase::reloadPlugins()
 
 	//setup dynamic plugins
 	foreach(auto pluginDir, allDirs) {
-		foreach(auto info, pluginDir.entryInfoList(QDir::Files | QDir::Readable | QDir::Executable | QDir::NoDotAndDotDot)) {
+#ifdef Q_OS_UNIX
+		foreach(auto info, pluginDir.entryInfoList(QDir::Files | QDir::Readable | QDir::NoDotAndDotDot | QDir::Executable)) {
+#else
+		foreach(auto info, pluginDir.entryInfoList(QDir::Files | QDir::Readable | QDir::NoDotAndDotDot)) {
+#endif
 			QScopedPointer<QPluginLoader, QScopedPointerDeleteLater> loader(new QPluginLoader(info.absoluteFilePath()));
 			auto metaData = loader->metaData();
 			auto keys = checkMeta(metaData, loader->fileName());
