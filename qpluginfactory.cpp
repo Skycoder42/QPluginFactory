@@ -4,6 +4,7 @@
 #include <QFileInfo>
 #include <QDebug>
 #include <QJsonArray>
+#include <QDir>
 
 extern bool __qpluginfactory_is_debug();
 
@@ -112,18 +113,11 @@ void QPluginFactoryBase::reloadPlugins()
 
 	QList<QDir> allDirs;
 	//first: dirs in path
-	auto path = qgetenv(QStringLiteral("PLUGIN_%1_PATH").arg(_pluginType.toUpper()).toUtf8().constData());
-	if(!path.isEmpty()) {
-#ifdef Q_OS_WIN
-		const static auto seperator = ';';
-#else
-		const static auto seperator = ':';
-#endif
-		foreach(auto p, path.split(seperator)) {
-			QDir dir(QString::fromUtf8(p));
-			if(dir.exists())
-				allDirs.append(dir);
-		}
+	auto path = qEnvironmentVariable(QStringLiteral("PLUGIN_%1_PATH").arg(_pluginType.toUpper()).toUtf8().constData());
+	foreach(auto p, path.split(QDir::listSeparator(), QString::SkipEmptyParts)) {
+		QDir dir(p);
+		if(dir.exists())
+			allDirs.append(dir);
 	}
 
 	//second: extra dirs
