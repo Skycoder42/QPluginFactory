@@ -113,7 +113,12 @@ void QPluginFactoryBase::reloadPlugins()
 
 	QList<QDir> allDirs;
 	//first: dirs in path
-	auto path = qEnvironmentVariable(QStringLiteral("PLUGIN_%1_PATH").arg(_pluginType.toUpper()).toUtf8().constData());
+	auto envVar = QStringLiteral("PLUGIN_%1_PATH").arg(_pluginType.toUpper()).toUtf8();
+#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
+	auto path = qEnvironmentVariable(envVar.constData());
+#else
+	auto path = QString::fromUtf8(qgetenv(envVar.constData()));
+#endif
 	foreach(auto p, path.split(QDir::listSeparator(), QString::SkipEmptyParts)) {
 		QDir dir(p);
 		if(dir.exists())
