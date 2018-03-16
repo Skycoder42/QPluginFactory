@@ -5,6 +5,7 @@
 #include <QDebug>
 #include <QJsonArray>
 #include <QDir>
+#include <QCoreApplication>
 
 extern bool __qpluginfactory_is_debug();
 
@@ -129,9 +130,13 @@ void QPluginFactoryBase::reloadPlugins()
 	allDirs.append(_extraDirs);
 
 	//third: original plugin dir
+#ifdef Q_OS_ANDROID
+	allDirs.append(QDir(QCoreApplication::applicationDirPath()));
+#else
 	QDir pluginMainDir = QLibraryInfo::location(QLibraryInfo::PluginsPath);
 	if(pluginMainDir.cd(_pluginType))
 		allDirs.append(pluginMainDir);
+#endif
 
 	//setup dynamic plugins
 	foreach(auto pluginDir, allDirs) {
