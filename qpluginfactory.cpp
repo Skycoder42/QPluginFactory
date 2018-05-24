@@ -1,6 +1,5 @@
 #include "qpluginfactory.h"
 
-#include <QLibraryInfo>
 #include <QFileInfo>
 #include <QDebug>
 #include <QJsonArray>
@@ -37,14 +36,14 @@ private:
 
 
 
-QPluginFactoryBase::QPluginFactoryBase(const QString &pluginType, QObject *parent) :
-	QPluginFactoryBase(pluginType, QByteArray(), parent)
+QPluginFactoryBase::QPluginFactoryBase(QString pluginType, QObject *parent) :
+	QPluginFactoryBase(std::move(pluginType), QByteArray(), parent)
 {}
 
-QPluginFactoryBase::QPluginFactoryBase(const QString &pluginType, const QByteArray &pluginIid, QObject *parent) :
+QPluginFactoryBase::QPluginFactoryBase(QString pluginType, QByteArray pluginIid, QObject *parent) :
 	QObject(parent),
-	_pluginType(pluginType),
-	_pluginIid(pluginIid),
+	_pluginType(std::move(pluginType)),
+	_pluginIid(std::move(pluginIid)),
 	_extraDirs(),
 	_loaderMutex(),
 	_plugins()
@@ -114,13 +113,14 @@ void QPluginFactoryBase::reloadPlugins()
 
 	QList<QDir> allDirs;
 	//first: dirs in path
+	//MAJOR remove
 	auto envVar = QStringLiteral("PLUGIN_%1_PATH").arg(_pluginType.toUpper()).toUtf8();
 #if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
 	auto path = qEnvironmentVariable(envVar.constData());
 #else
 	auto path = QString::fromUtf8(qgetenv(envVar.constData()));
 #endif
-	foreach(auto p, path.split(QDir::listSeparator(), QString::SkipEmptyParts)) {
+	for(const auto &p : path.split(QDir::listSeparator(), QString::SkipEmptyParts)) {
 		QDir dir(p);
 		if(dir.exists())
 			allDirs.append(dir);
@@ -129,21 +129,19 @@ void QPluginFactoryBase::reloadPlugins()
 	//second: extra dirs
 	allDirs.append(_extraDirs);
 
-	//third: original plugin dir
-#ifdef Q_OS_ANDROID
-	allDirs.append(QDir(QCoreApplication::applicationDirPath()));
-#else
-	QDir pluginMainDir = QLibraryInfo::location(QLibraryInfo::PluginsPath);
-	if(pluginMainDir.cd(_pluginType))
-		allDirs.append(pluginMainDir);
-#endif
+	//third: original plugin dirs
+	for(const auto &plgPath : QCoreApplication::libraryPaths()) {
+		QDir plgDir {plgPath};
+		if(plgDir.cd(_pluginType))
+			allDirs.append(plgDir);
+	}
 
 	//setup dynamic plugins
-	foreach(auto pluginDir, allDirs) {
-#ifdef Q_OS_UNIX
-		foreach(auto info, pluginDir.entryInfoList(QDir::Files | QDir::Readable | QDir::NoDotAndDotDot | QDir::Executable)) {
+	for(const auto &pluginDir : allDirs) {
+#ifdef Q_OS_WIN
+		for(const auto &info : pluginDir.entryInfoList({QStringLiteral("*.dll")}, QDir::Files | QDir::Readable | QDir::NoDotAndDotDot)) {
 #else
-		foreach(auto info, pluginDir.entryInfoList(QDir::Files | QDir::Readable | QDir::NoDotAndDotDot)) {
+		for(const auto &info : pluginDir.entryInfoList(QDir::Files | QDir::Readable | QDir::NoDotAndDotDot | QDir::Executable)) {
 #endif
 			QScopedPointer<QPluginLoader, QScopedPointerDeleteLater> loader(new QPluginLoader(info.absoluteFilePath()));
 			auto metaData = loader->metaData();
@@ -152,7 +150,7 @@ void QPluginFactoryBase::reloadPlugins()
 				continue;
 
 			auto dynInfo = QSharedPointer<DynamicPluginInfo>::create(loader);
-			foreach(auto key, keys) {
+			for(const auto key : keys) {
 				auto k = key.toString();
 				if(!_plugins.contains(k))
 					_plugins.insert(k, dynInfo);
@@ -162,9 +160,9 @@ void QPluginFactoryBase::reloadPlugins()
 	}
 
 	//setup static plugins
-	foreach(auto info, QPluginLoader::staticPlugins()) {
+	for(const auto &info : QPluginLoader::staticPlugins()) {
 		auto keys = checkMeta(info.metaData(), QString());
-		foreach(auto key, keys) {
+		for(const auto key : keys) {
 			auto k = key.toString();
 			if(!_plugins.contains(k))
 				_plugins.insert(k, QSharedPointer<StaticPluginInfo>::create(info));
@@ -173,7 +171,7 @@ void QPluginFactoryBase::reloadPlugins()
 	}
 
 	//remove old, now unused plugins
-	foreach(auto key, oldKeys)
+	for(const auto &key : oldKeys)
 		_plugins.remove(key);
 }
 
@@ -232,8 +230,7 @@ QJsonArray QPluginFactoryBase::checkMeta(const QJsonObject &metaData, const QStr
 
 QPluginLoadException::QPluginLoadException(QPluginLoader *loader) :
 	QPluginLoadException(QStringLiteral("Failed to load plugin \"%1\" with error: %2")
-						 .arg(loader->fileName())
-						 .arg(loader->errorString())
+						 .arg(loader->fileName(), loader->errorString())
 						 .toUtf8())
 {}
 
@@ -252,9 +249,9 @@ QException *QPluginLoadException::clone() const
 	return new QPluginLoadException(_what);
 }
 
-QPluginLoadException::QPluginLoadException(const QByteArray &error) :
+QPluginLoadException::QPluginLoadException(QByteArray error) :
 	QException(),
-	_what(error)
+	_what(std::move(error))
 {}
 
 

@@ -17,7 +17,7 @@ public:
 	QException *clone() const override;
 
 private:
-	QPluginLoadException(const QByteArray &error);
+	QPluginLoadException(QByteArray error);
 	const QByteArray _what;
 };
 
@@ -30,14 +30,16 @@ class QPluginFactoryBase : public QObject
 
 public:
 	class PluginInfo {
+		Q_DISABLE_COPY(PluginInfo)
 	public:
+		inline PluginInfo() = default;
 		virtual inline ~PluginInfo() = default;
 		virtual QJsonObject metaData() const = 0;
 		virtual QObject *instance() = 0;
 	};
 
-	QPluginFactoryBase(const QString &pluginType, QObject *parent = nullptr);
-	QPluginFactoryBase(const QString &pluginType, const QByteArray &pluginIid, QObject *parent = nullptr);
+	QPluginFactoryBase(QString pluginType, QObject *parent = nullptr);
+	QPluginFactoryBase(QString pluginType, QByteArray pluginIid, QObject *parent = nullptr);
 
 	void addSearchDir(const QDir &dir, bool isTopLevel = false);
 
@@ -121,7 +123,7 @@ QPluginObjectFactory<TPlugin, TObject>::QPluginObjectFactory(const QString &plug
 {}
 
 template<typename TPlugin, typename TObject>
-template <typename... Args>
+template<typename... Args>
 TObject *QPluginObjectFactory<TPlugin, TObject>::createInstance(const QString &key, Args... args) const
 {
 	auto plg = this->plugin(key);
@@ -133,12 +135,12 @@ TObject *QPluginObjectFactory<TPlugin, TObject>::createInstance(const QString &k
 
 #define Q_GLOBAL_PLUGIN_FACTORY(PluginType, pluginKey, instName) namespace { \
 	typedef QPluginFactory<PluginType> __QGPF_ ## PluginType ## _Factory; \
-	Q_GLOBAL_STATIC_WITH_ARGS(__QGPF_ ## PluginType ## _Factory, instName, (QLatin1String(pluginKey))) \
+	Q_GLOBAL_STATIC_WITH_ARGS(__QGPF_ ## PluginType ## _Factory, instName, (QStringLiteral(pluginKey))) \
 }
 
 #define Q_GLOBAL_PLUGIN_OBJECT_FACTORY(PluginType, ObjectType, pluginKey, instName) namespace { \
 	typedef QPluginObjectFactory<PluginType, ObjectType> __QGPF_ ## PluginType ## _Factory; \
-	Q_GLOBAL_STATIC_WITH_ARGS(__QGPF_ ## PluginType ## _Factory, instName, (QLatin1String(pluginKey))) \
+	Q_GLOBAL_STATIC_WITH_ARGS(__QGPF_ ## PluginType ## _Factory, instName, (QStringLiteral(pluginKey))) \
 }
 
 #endif // QPLUGINFACTORY_H
