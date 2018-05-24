@@ -10,15 +10,7 @@ Q_GLOBAL_PLUGIN_FACTORY(IPlugin, "plugin", loader)
 PluginHelper::PluginHelper(QObject *parent) :
 	QObject(parent),
 	_current(nullptr)
-{
-#ifndef Q_OS_ANDROID
-	QDir dir(QCoreApplication::applicationDirPath());
-	dir.cd("../Plugin1");
-	qDebug() << dir;
-	loader->addSearchDir(dir);
-	loader->reloadPlugins();
-#endif
-}
+{}
 
 QStringList PluginHelper::keys() const
 {

@@ -6,6 +6,7 @@
 int main(int argc, char *argv[])
 {
 	QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+	qputenv("QT_PLUGIN_PATH", (QCoreApplication::applicationDirPath() + "../plugins").toUtf8());
 
 	QGuiApplication app(argc, argv);
 

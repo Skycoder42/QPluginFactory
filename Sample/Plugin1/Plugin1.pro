@@ -1,6 +1,8 @@
 QT       += core
 
-TARGET = plugins_plugin_Plugin1
+TARGET = Plugin1
+DESTDIR = ../plugins/plugin/
+
 TEMPLATE = lib
 CONFIG += plugin
 

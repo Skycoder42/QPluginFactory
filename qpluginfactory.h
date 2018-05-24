@@ -135,12 +135,12 @@ TObject *QPluginObjectFactory<TPlugin, TObject>::createInstance(const QString &k
 
 #define Q_GLOBAL_PLUGIN_FACTORY(PluginType, pluginKey, instName) namespace { \
 	typedef QPluginFactory<PluginType> __QGPF_ ## PluginType ## _Factory; \
-	Q_GLOBAL_STATIC_WITH_ARGS(__QGPF_ ## PluginType ## _Factory, instName, (QStringLiteral(pluginKey))) \
+	Q_GLOBAL_STATIC_WITH_ARGS(__QGPF_ ## PluginType ## _Factory, instName, (QString::fromUtf8(pluginKey))) \
 }
 
 #define Q_GLOBAL_PLUGIN_OBJECT_FACTORY(PluginType, ObjectType, pluginKey, instName) namespace { \
 	typedef QPluginObjectFactory<PluginType, ObjectType> __QGPF_ ## PluginType ## _Factory; \
-	Q_GLOBAL_STATIC_WITH_ARGS(__QGPF_ ## PluginType ## _Factory, instName, (QStringLiteral(pluginKey))) \
+	Q_GLOBAL_STATIC_WITH_ARGS(__QGPF_ ## PluginType ## _Factory, instName, (QString::fromUtf8(pluginKey))) \
 }
 
 #endif // QPLUGINFACTORY_H

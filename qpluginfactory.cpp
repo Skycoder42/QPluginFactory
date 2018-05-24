@@ -139,9 +139,9 @@ void QPluginFactoryBase::reloadPlugins()
 	//setup dynamic plugins
 	for(const auto &pluginDir : allDirs) {
 #ifdef Q_OS_WIN
-		for(const auto &info : pluginDir.entryInfoList({QStringLiteral("*.dll")}, QDir::Files | QDir::Readable | QDir::NoDotAndDotDot)) {
+		for(const auto &info : pluginDir.entryInfoList({QStringLiteral("*.dll")}, QDir::Files | QDir::Readable)) {
 #else
-		for(const auto &info : pluginDir.entryInfoList(QDir::Files | QDir::Readable | QDir::NoDotAndDotDot | QDir::Executable)) {
+		for(const auto &info : pluginDir.entryInfoList(QDir::Files | QDir::Readable)) {
 #endif
 			QScopedPointer<QPluginLoader, QScopedPointerDeleteLater> loader(new QPluginLoader(info.absoluteFilePath()));
 			auto metaData = loader->metaData();
