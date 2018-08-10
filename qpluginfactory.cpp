@@ -6,8 +6,6 @@
 #include <QDir>
 #include <QCoreApplication>
 
-extern bool __qpluginfactory_is_debug();
-
 class StaticPluginInfo : public QPluginFactoryBase::PluginInfo
 {
 public:
@@ -36,12 +34,13 @@ private:
 
 
 
-QPluginFactoryBase::QPluginFactoryBase(QString pluginType, QObject *parent) :
-	QPluginFactoryBase(std::move(pluginType), QByteArray(), parent)
+QPluginFactoryBase::QPluginFactoryBase(QString pluginType, QObject *parent, bool isDebugBuild) :
+	QPluginFactoryBase(std::move(pluginType), QByteArray(), parent, isDebugBuild)
 {}
 
-QPluginFactoryBase::QPluginFactoryBase(QString pluginType, QByteArray pluginIid, QObject *parent) :
+QPluginFactoryBase::QPluginFactoryBase(QString pluginType, QByteArray pluginIid, QObject *parent, bool isDebugBuild) :
 	QObject(parent),
+	_isDebugBuild{isDebugBuild},
 	_pluginType(std::move(pluginType)),
 	_pluginIid(std::move(pluginIid)),
 	_extraDirs(),
@@ -207,7 +206,7 @@ void QPluginFactoryBase::unload(const QString &key)
 
 QJsonArray QPluginFactoryBase::checkMeta(const QJsonObject &metaData, const QString &filename) const
 {
-	if(metaData[QStringLiteral("debug")].toBool() != __qpluginfactory_is_debug())
+	if(metaData[QStringLiteral("debug")].toBool() != _isDebugBuild)
 		return {};
 
 	auto iid = metaData.value(QStringLiteral("IID")).toString().toUtf8();

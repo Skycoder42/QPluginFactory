@@ -7,6 +7,12 @@
 #include <QException>
 #include <QMutex>
 
+#ifdef QT_NO_DEBUG
+#define Q_PLUGIN_FACTORY_IS_DEBUG false
+#else
+#define Q_PLUGIN_FACTORY_IS_DEBUG true
+#endif
+
 class QPluginLoadException : public QException
 {
 public:
@@ -38,8 +44,8 @@ public:
 		virtual QObject *instance() = 0;
 	};
 
-	QPluginFactoryBase(QString pluginType, QObject *parent = nullptr);
-	QPluginFactoryBase(QString pluginType, QByteArray pluginIid, QObject *parent = nullptr);
+	QPluginFactoryBase(QString pluginType, QObject *parent = nullptr, bool isDebugBuild = Q_PLUGIN_FACTORY_IS_DEBUG);
+	QPluginFactoryBase(QString pluginType, QByteArray pluginIid, QObject *parent = nullptr, bool isDebugBuild = Q_PLUGIN_FACTORY_IS_DEBUG);
 
 	void addSearchDir(const QDir &dir, bool isTopLevel = false);
 
@@ -60,6 +66,7 @@ protected:
 	void unload(const QString &key);
 
 private:
+	const bool _isDebugBuild;
 	const QString _pluginType;
 	QByteArray _pluginIid;
 	QList<QDir> _extraDirs;
