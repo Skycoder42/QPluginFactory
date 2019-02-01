@@ -6,10 +6,12 @@
 #include <QDir>
 #include <QCoreApplication>
 
+namespace {
+
 class StaticPluginInfo : public QPluginFactoryBase::PluginInfo
 {
 public:
-	StaticPluginInfo(const QStaticPlugin &plugin);
+	StaticPluginInfo(QStaticPlugin plugin);
 
 	QJsonObject metaData() const override;
 	QObject *instance() override;
@@ -32,6 +34,8 @@ private:
 	QScopedPointer<QPluginLoader, QScopedPointerDeleteLater> _loader;
 };
 
+}
+
 
 
 QPluginFactoryBase::QPluginFactoryBase(QString pluginType, QObject *parent, bool isDebugBuild) :
@@ -39,13 +43,10 @@ QPluginFactoryBase::QPluginFactoryBase(QString pluginType, QObject *parent, bool
 {}
 
 QPluginFactoryBase::QPluginFactoryBase(QString pluginType, QByteArray pluginIid, QObject *parent, bool isDebugBuild) :
-	QObject(parent),
+	QObject{parent},
 	_isDebugBuild{isDebugBuild},
-	_pluginType(std::move(pluginType)),
-	_pluginIid(std::move(pluginIid)),
-	_extraDirs(),
-	_loaderMutex(),
-	_plugins()
+	_pluginType{std::move(pluginType)},
+	_pluginIid{std::move(pluginIid)}
 {
 	//setup dynamic plugins
 	reloadPlugins();
@@ -63,13 +64,13 @@ void QPluginFactoryBase::addSearchDir(const QDir &dir, bool isTopLevel)
 
 QStringList QPluginFactoryBase::allKeys() const
 {
-	QMutexLocker _(&_loaderMutex);
+	QMutexLocker _{&_loaderMutex};
 	return _plugins.keys();
 }
 
 QJsonObject QPluginFactoryBase::metaData(const QString &key) const
 {
-	QMutexLocker _(&_loaderMutex);
+	QMutexLocker _{&_loaderMutex};
 	auto info = _plugins.value(key);
 	if(info)
 		return info->metaData()[QStringLiteral("MetaData")].toObject();
@@ -79,7 +80,7 @@ QJsonObject QPluginFactoryBase::metaData(const QString &key) const
 
 QObject *QPluginFactoryBase::plugin(const QString &key) const
 {
-	QMutexLocker _(&_loaderMutex);
+	QMutexLocker _{&_loaderMutex};
 	auto info = _plugins.value(key);
 	if(info)
 		return info->instance();
@@ -105,7 +106,7 @@ void QPluginFactoryBase::setPluginIid(const QByteArray &pluginIid)
 
 void QPluginFactoryBase::reloadPlugins()
 {
-	QMutexLocker _(&_loaderMutex);
+	QMutexLocker _{&_loaderMutex};
 
 	//find the plugin dir
 	auto oldKeys = _plugins.keys();
@@ -120,9 +121,9 @@ void QPluginFactoryBase::reloadPlugins()
 	auto path = QString::fromUtf8(qgetenv(envVar.constData()));
 #endif
 	for(const auto &p : path.split(QDir::listSeparator(), QString::SkipEmptyParts)) {
-		QDir dir(p);
-		if(dir.exists())
-			allDirs.append(dir);
+		QDir plgDir{p};
+		if(plgDir.exists())
+			allDirs.append(plgDir);
 	}
 
 	//second: extra dirs
@@ -130,7 +131,7 @@ void QPluginFactoryBase::reloadPlugins()
 
 	//third: original plugin dirs
 	for(const auto &plgPath : QCoreApplication::libraryPaths()) {
-		QDir plgDir {plgPath};
+		QDir plgDir{plgPath};
 		if(plgDir.cd(_pluginType))
 			allDirs.append(plgDir);
 	}
@@ -142,7 +143,7 @@ void QPluginFactoryBase::reloadPlugins()
 #else
 		for(const auto &info : pluginDir.entryInfoList(QDir::Files | QDir::Readable)) {
 #endif
-			QScopedPointer<QPluginLoader, QScopedPointerDeleteLater> loader(new QPluginLoader(info.absoluteFilePath()));
+			QScopedPointer<QPluginLoader, QScopedPointerDeleteLater> loader{new QPluginLoader{info.absoluteFilePath()}};
 			auto metaData = loader->metaData();
 			auto keys = checkMeta(metaData, loader->fileName());
 			if(keys.isEmpty())
@@ -176,7 +177,7 @@ void QPluginFactoryBase::reloadPlugins()
 
 bool QPluginFactoryBase::isLoaded(const QString &key) const
 {
-	QMutexLocker _(&_loaderMutex);
+	QMutexLocker _{&_loaderMutex};
 	auto info = _plugins.value(key);
 	if(info) {
 		auto dynInfo = info.dynamicCast<DynamicPluginInfo>();
@@ -190,7 +191,7 @@ bool QPluginFactoryBase::isLoaded(const QString &key) const
 
 void QPluginFactoryBase::unload(const QString &key)
 {
-	QMutexLocker _(&_loaderMutex);
+	QMutexLocker _{&_loaderMutex};
 	auto info = _plugins.value(key);
 	if(info) {
 		auto dynInfo = info.dynamicCast<DynamicPluginInfo>();
@@ -228,9 +229,9 @@ QJsonArray QPluginFactoryBase::checkMeta(const QJsonObject &metaData, const QStr
 
 
 QPluginLoadException::QPluginLoadException(QPluginLoader *loader) :
-	QPluginLoadException(QStringLiteral("Failed to load plugin \"%1\" with error: %2")
+	QPluginLoadException{QStringLiteral("Failed to load plugin \"%1\" with error: %2")
 						 .arg(loader->fileName(), loader->errorString())
-						 .toUtf8())
+						 .toUtf8()}
 {}
 
 const char *QPluginLoadException::what() const noexcept
@@ -249,14 +250,13 @@ QException *QPluginLoadException::clone() const
 }
 
 QPluginLoadException::QPluginLoadException(QByteArray error) :
-	QException(),
-	_what(std::move(error))
+	_what{std::move(error)}
 {}
 
 
 
-StaticPluginInfo::StaticPluginInfo(const QStaticPlugin &plugin) :
-	_plugin(plugin)
+StaticPluginInfo::StaticPluginInfo(QStaticPlugin plugin) :
+	_plugin{plugin}
 {}
 
 QJsonObject StaticPluginInfo::metaData() const
@@ -269,8 +269,7 @@ QObject *StaticPluginInfo::instance()
 	return _plugin.instance();
 }
 
-DynamicPluginInfo::DynamicPluginInfo(QScopedPointer<QPluginLoader, QScopedPointerDeleteLater> &loader) :
-	_loader()
+DynamicPluginInfo::DynamicPluginInfo(QScopedPointer<QPluginLoader, QScopedPointerDeleteLater> &loader)
 {
 	_loader.swap(loader);
 }
@@ -283,7 +282,7 @@ QJsonObject DynamicPluginInfo::metaData() const
 QObject *DynamicPluginInfo::instance()
 {
 	if(!_loader->isLoaded() && !_loader->load())
-		throw QPluginLoadException(_loader.data());
+		throw QPluginLoadException{_loader.data()};
 	return _loader->instance();
 }
 

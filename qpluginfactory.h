@@ -1,11 +1,11 @@
 #ifndef QPLUGINFACTORY_H
 #define QPLUGINFACTORY_H
 
-#include <QDir>
-#include <QObject>
-#include <QPluginLoader>
-#include <QException>
-#include <QMutex>
+#include <QtCore/QDir>
+#include <QtCore/QObject>
+#include <QtCore/QPluginLoader>
+#include <QtCore/QException>
+#include <QtCore/QMutex>
 
 #ifdef QT_NO_DEBUG
 #define Q_PLUGIN_FACTORY_IS_DEBUG false
@@ -13,7 +13,7 @@
 #define Q_PLUGIN_FACTORY_IS_DEBUG true
 #endif
 
-class QPluginLoadException : public QException
+class Q_PLUGIN_FACTORY_EXPORT QPluginLoadException : public QException
 {
 public:
 	QPluginLoadException(QPluginLoader *loader);
@@ -27,7 +27,7 @@ private:
 	const QByteArray _what;
 };
 
-class QPluginFactoryBase : public QObject
+class Q_PLUGIN_FACTORY_EXPORT QPluginFactoryBase : public QObject
 {
 	Q_OBJECT
 
@@ -35,7 +35,7 @@ class QPluginFactoryBase : public QObject
 	Q_PROPERTY(QByteArray pluginIid READ pluginIid WRITE setPluginIid)
 
 public:
-	class PluginInfo {
+	class Q_PLUGIN_FACTORY_EXPORT PluginInfo {
 		Q_DISABLE_COPY(PluginInfo)
 	public:
 		inline PluginInfo() = default;
@@ -56,7 +56,7 @@ public:
 	QString pluginType() const;
 	QByteArray pluginIid() const;
 
-public slots:
+public Q_SLOTS:
 	virtual void setPluginIid(const QByteArray &pluginIid);
 
 	void reloadPlugins();
