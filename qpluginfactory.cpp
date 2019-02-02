@@ -15,10 +15,14 @@ public:
 
 	QJsonObject metaData() const override;
 	QObject *instance() override;
+	bool isLoaded() const override;
+	void unload(const QString &key) override;
 
 private:
 	QStaticPlugin _plugin;
 };
+
+#if QT_CONFIG(library)
 
 class DynamicPluginInfo : public QPluginFactoryBase::PluginInfo
 {
@@ -27,12 +31,14 @@ public:
 
 	QJsonObject metaData() const override;
 	QObject *instance() override;
-
-	QPluginLoader *loader() const;
+	bool isLoaded() const override;
+	void unload(const QString &key) override;
 
 private:
 	QScopedPointer<QPluginLoader, QScopedPointerDeleteLater> _loader;
 };
+
+#endif
 
 }
 
@@ -111,6 +117,8 @@ void QPluginFactoryBase::reloadPlugins()
 	//find the plugin dir
 	auto oldKeys = _plugins.keys();
 
+#if QT_CONFIG(library)
+
 	QList<QDir> allDirs;
 	//first: dirs in path
 	//MAJOR remove
@@ -159,6 +167,8 @@ void QPluginFactoryBase::reloadPlugins()
 		}
 	}
 
+#endif
+
 	//setup static plugins
 	for(const auto &info : QPluginLoader::staticPlugins()) {
 		auto keys = checkMeta(info.metaData(), QString());
@@ -179,13 +189,9 @@ bool QPluginFactoryBase::isLoaded(const QString &key) const
 {
 	QMutexLocker _{&_loaderMutex};
 	auto info = _plugins.value(key);
-	if(info) {
-		auto dynInfo = info.dynamicCast<DynamicPluginInfo>();
-		if(dynInfo)
-			return dynInfo->loader()->isLoaded();
-		else //static plugin
-			return true;
-	} else
+	if(info)
+		return info->isLoaded();
+	else
 		return false;
 }
 
@@ -193,16 +199,8 @@ void QPluginFactoryBase::unload(const QString &key)
 {
 	QMutexLocker _{&_loaderMutex};
 	auto info = _plugins.value(key);
-	if(info) {
-		auto dynInfo = info.dynamicCast<DynamicPluginInfo>();
-		if(dynInfo) {
-			auto loader = dynInfo->loader();
-			if(loader->isLoaded()){
-				if(!loader->unload())
-					qWarning().noquote() << "Failed to unload plugin for key" << key << "with error:" << loader->errorString();
-			}
-		}
-	}
+	if(info)
+		info->unload(key);
 }
 
 QJsonArray QPluginFactoryBase::checkMeta(const QJsonObject &metaData, const QString &filename) const
@@ -228,10 +226,12 @@ QJsonArray QPluginFactoryBase::checkMeta(const QJsonObject &metaData, const QStr
 
 
 
+#if QT_CONFIG(library)
+
 QPluginLoadException::QPluginLoadException(QPluginLoader *loader) :
-	QPluginLoadException{QStringLiteral("Failed to load plugin \"%1\" with error: %2")
-						 .arg(loader->fileName(), loader->errorString())
-						 .toUtf8()}
+	_what{QStringLiteral("Failed to load plugin \"%1\" with error: %2")
+		  .arg(loader->fileName(), loader->errorString())
+		  .toUtf8()}
 {}
 
 const char *QPluginLoadException::what() const noexcept
@@ -244,14 +244,12 @@ void QPluginLoadException::raise() const
 	throw *this;
 }
 
-QException *QPluginLoadException::clone() const
+QExceptionBase::Base *QPluginLoadException::clone() const
 {
-	return new QPluginLoadException(_what);
+	return new QPluginLoadException{*this};
 }
 
-QPluginLoadException::QPluginLoadException(QByteArray error) :
-	_what{std::move(error)}
-{}
+#endif
 
 
 
@@ -268,6 +266,20 @@ QObject *StaticPluginInfo::instance()
 {
 	return _plugin.instance();
 }
+
+bool StaticPluginInfo::isLoaded() const
+{
+	return true;
+}
+
+void StaticPluginInfo::unload(const QString &key)
+{
+	Q_UNUSED(key)
+}
+
+
+
+#if QT_CONFIG(library)
 
 DynamicPluginInfo::DynamicPluginInfo(QScopedPointer<QPluginLoader, QScopedPointerDeleteLater> &loader)
 {
@@ -286,7 +298,17 @@ QObject *DynamicPluginInfo::instance()
 	return _loader->instance();
 }
 
-QPluginLoader *DynamicPluginInfo::loader() const
+bool DynamicPluginInfo::isLoaded() const
 {
-	return _loader.data();
+	return _loader->isLoaded();
 }
+
+void DynamicPluginInfo::unload(const QString &key)
+{
+	if(_loader->isLoaded()){
+		if(!_loader->unload())
+			qWarning().noquote() << "Failed to unload plugin for key" << key << "with error:" << _loader->errorString();
+	}
+}
+
+#endif

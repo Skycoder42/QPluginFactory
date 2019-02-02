@@ -4,28 +4,33 @@
 #include <QtCore/QDir>
 #include <QtCore/QObject>
 #include <QtCore/QPluginLoader>
-#include <QtCore/QException>
 #include <QtCore/QMutex>
 
-#ifdef QT_NO_DEBUG
-#define Q_PLUGIN_FACTORY_IS_DEBUG false
-#else
-#define Q_PLUGIN_FACTORY_IS_DEBUG true
-#endif
+#include <qexceptionbase.h>
 
-class Q_PLUGIN_FACTORY_EXPORT QPluginLoadException : public QException
+#if QT_CONFIG(library)
+class Q_PLUGIN_FACTORY_EXPORT QPluginLoadException : public QExceptionBase
 {
 public:
 	QPluginLoadException(QPluginLoader *loader);
 
 	const char *what() const noexcept override;
 	void raise() const override;
-	QException *clone() const override;
+	Base *clone() const override;
 
 private:
-	QPluginLoadException(QByteArray error);
 	const QByteArray _what;
 };
+#else
+//dummy class
+class Q_PLUGIN_FACTORY_EXPORT QPluginLoadException : public QExceptionBase {};
+#endif
+
+#ifdef QT_NO_DEBUG
+#define Q_PLUGIN_FACTORY_IS_DEBUG false
+#else
+#define Q_PLUGIN_FACTORY_IS_DEBUG true
+#endif
 
 class Q_PLUGIN_FACTORY_EXPORT QPluginFactoryBase : public QObject
 {
@@ -42,6 +47,9 @@ public:
 		virtual inline ~PluginInfo() = default;
 		virtual QJsonObject metaData() const = 0;
 		virtual QObject *instance() = 0;
+
+		virtual bool isLoaded() const = 0;
+		virtual void unload(const QString &key) = 0;
 	};
 
 	QPluginFactoryBase(QString pluginType, QObject *parent = nullptr, bool isDebugBuild = Q_PLUGIN_FACTORY_IS_DEBUG);

@@ -2,8 +2,6 @@ QT += quick
 
 CONFIG += c++14
 
-include(../../qpluginfactory.pri)
-
 HEADERS += \
 	pluginhelper.h \
 	iplugin.h
@@ -14,3 +12,6 @@ SOURCES += main.cpp \
 RESOURCES += qml.qrc
 
 ANDROID_EXTRA_PLUGINS = $$OUT_PWD/../plugins
+
+include(../../qpluginfactory.pri)
+!load(qdep):error("qdep required")
